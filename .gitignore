@@ -13,3 +13,6 @@ junit-noframes.html
 hs_err_*.log
 
 /tmp
+
+/.idea
+

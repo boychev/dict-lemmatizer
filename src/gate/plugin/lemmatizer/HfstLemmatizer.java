@@ -19,270 +19,218 @@
  */
 package gate.plugin.lemmatizer;
 
+import fi.seco.hfst.*;
+import fi.seco.hfst.Transducer.Result;
+
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.util.Collection;
-//import net.hfst.NoTokenizationException;
-import fi.seco.hfst.Transducer;
-import fi.seco.hfst.Transducer.Result;
-import fi.seco.hfst.TransducerAlphabet;
-import fi.seco.hfst.TransducerHeader;
-import fi.seco.hfst.TransducerStream;
-import fi.seco.hfst.UnweightedTransducer;
-import fi.seco.hfst.WeightedTransducer;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
 
 /**
  * A class representing the HFST lemmatizer transducer.
- * 
+ *
  * @author Ahmet Aker
  * @author Johann Petrak
  */
+@SuppressWarnings("Duplicates")
 public class HfstLemmatizer {
+	private Transducer transducer = null;
+	private String langCode = null;
 
-  private Transducer transducer = null;
-  private String langCode = null;
-  
-  public final static long TRANSITION_TARGET_TABLE_START = 2147483648l; // 2^31 or UINT_MAX/2 rounded up
-  public final static long NO_TABLE_INDEX = 4294967295l;
-  public final static float INFINITE_WEIGHT = (float) 4294967295l; // this is hopefully the same as
-  // static_cast<float>(UINT_MAX) in C++
-  public final static int NO_SYMBOL_NUMBER = 65535; // this is USHRT_MAX
+	protected HfstLemmatizer(Transducer t, String langCode) {
+		transducer = t;
+		this.langCode = langCode;
+	}
 
-  public static enum FlagDiacriticOperator {
+	public static HfstLemmatizer load(File resourceFile, String langCode) throws Exception {
+		Transducer tr;
+		// TODO: the TransducerHeader and WeightedTransducer etc classes cannot
+		// handle InputStream they need FileInputStream so it is not possible
+		// to do on-the-fly compression of the model files. Would need to
+		// change the library or find a version that can do this.
+		FileInputStream ifs = new FileInputStream(resourceFile);
+		GZIPInputStream gis = new GZIPInputStream(ifs);
+		TransducerStream ts = new TransducerStream(new DataInputStream(gis));
+		TransducerHeader h = new TransducerHeader(ts);
+		TransducerAlphabet a = new TransducerAlphabet(ts, h.getSymbolCount());
+		if (h.isWeighted()) tr = new WeightedTransducer(ts, h, a);
+		else tr = new UnweightedTransducer(ts, h, a);
+		return new HfstLemmatizer(tr, langCode);
+	}
 
-    P, N, R, D, C, U
-  };
-  
-  protected HfstLemmatizer(Transducer t, String langCode) {
-    transducer = t;
-    this.langCode = langCode;
-  }
+	public String getLemma(String aWord, String aPOSType) throws Exception {
+		List<Result> analyses;
+		// NOTE: this will not catch any exceptions so we can catch them in the caller
+		// and do some debugging
+		analyses = transducer.analyze(aWord);
+		for (Result analysisResult : analyses) {
+			// TODO: this is incorrect, we need to change this
+			String analysis = String.join("", analysisResult.getSymbols());
+			if ("en".equalsIgnoreCase(langCode)) {
+				String grammar = "NONE";
+				String grammarCheck = "NONE";
+				if (aPOSType.startsWith("NN")) {
+					grammar = "\\[N\\]\\+N.*";
+					grammarCheck = "[N]+N";
+				} else if (aPOSType.startsWith("VB")) {
+					grammar = "\\[V\\]\\+V.*";
+					grammarCheck = "[V]+V";
+				} else if (aPOSType.startsWith("JJ")) {
+					grammar = "\\[ADJ\\]\\+ADJ.*";
+					grammarCheck = "[ADJ]+ADJ";
+				} else if (aPOSType.startsWith("RB")) {
+					grammar = "\\[ADV\\]\\+ADV.*";
+					grammarCheck = "[ADV]+ADV";
+				}
 
-  public static HfstLemmatizer load(File resourceFile, String langCode) throws Exception {
-    Transducer tr;
-    // TODO: the TransducerHeader and WeightedTransducer etc classes cannot
-    // handle InputStream they need FileInputStream so it is not possible
-    // to do on-the-fly compression of the model files. Would need to 
-    // change the library or find a version that can do this.
-    FileInputStream ifs = new FileInputStream(resourceFile);
-    GZIPInputStream gis = new GZIPInputStream(ifs);
-    TransducerStream ts = new TransducerStream(new DataInputStream(gis));
-    TransducerHeader h = new TransducerHeader(ts);
-    TransducerAlphabet a  = new TransducerAlphabet(ts, h.getSymbolCount());
-    if (h.isWeighted()) {
-      tr = new WeightedTransducer(ts, h, a);
-    } else {
-      tr = new UnweightedTransducer(ts, h, a);
-    }
-    return new HfstLemmatizer(tr, langCode);
-  }
+				if (analysis.contains(grammarCheck)) {
+					String lemma = analysis.replaceAll(grammar, "");
+					if ((lemma.contains("+") && !lemma.contains("-")) && (aWord.contains("-") && !aWord.contains("+"))) lemma = lemma.replaceAll("\\+", "-");
+					if (lemma.contains("+") && !aWord.contains("+")) lemma = lemma.replaceAll("\\+", "");
+					return lemma.toLowerCase();
+				}
 
-  public String getLemma(String aWord, String aPOSType) throws Exception {
-    List<Result> analyses;
-    // NOTE: this will not catch any exceptions so we can catch them in the caller
-    // and do some debugging
-    analyses = transducer.analyze(aWord);
-    //for (Result analysis : analyses) {
-    //  System.err.println("DEBUG Lemmatizer analysis of "+aWord+": "+analysis);
-    //}
-    for (Result analysisResult : analyses) {
-      // TODO: this is incorrect, we need to change this
-      String analysis = String.join("", analysisResult.getSymbols());
-      if ("en".equalsIgnoreCase(langCode)) {
-        String grammar = "NONE";
-        String grammarCheck = "NONE";
-        if ("NOUN".equalsIgnoreCase(aPOSType)) {
-          grammar = "\\[N\\]\\+N.*";
-          grammarCheck = "[N]+N";
-        } else if ("VERB".equalsIgnoreCase(aPOSType)) {
-          grammar = "\\[V\\]\\+V.*";
-          grammarCheck = "[V]+V";
-        } else if ("ADJ".equalsIgnoreCase(aPOSType)) {
-          grammar = "\\[ADJ\\]\\+ADJ.*";
-          grammarCheck = "[ADJ]+ADJ";
-        } else if ("ADV".equalsIgnoreCase(aPOSType)) {
-          grammar = "\\[ADV\\]\\+ADV.*";
-          grammarCheck = "[ADV]+ADV";
-        }
-        //System.out.println(analysis);
-        if (analysis.contains(grammarCheck)) {
-          String lemma = analysis.replaceAll(grammar, "");
-          if ((lemma.contains("+") && !lemma.contains("-")) && (aWord.contains("-") && !aWord.contains("+"))) {
-            lemma = lemma.replaceAll("\\+", "-");
-          }
-          if (lemma.contains("+") && !aWord.contains("+")) {
-            lemma = lemma.replaceAll("\\+", "");
-          }
-          return lemma.toLowerCase();
-        }
-      } else if ("de".equalsIgnoreCase(langCode)) {
-        String grammar = "NONE";
-        String grammar2 = ">";
-        String grammarCheck = "NONE";
-        if ("NOUN".equalsIgnoreCase(aPOSType)) {
-          grammar = "<\\+NN>.*";
-          grammarCheck = "<+NN>";
-        } else if ("VERB".equalsIgnoreCase(aPOSType)) {
-          grammar = "<\\+V>.*";
-          grammarCheck = "<+V>";
-        } else if ("ADJ".equalsIgnoreCase(aPOSType)) {
-          grammar = "<\\+ADJ>.*";
-          grammarCheck = "<+ADJ>";
-        } else if ("ADV".equalsIgnoreCase(aPOSType)) {
-          grammar = "<\\+ADV>.*";
-          grammarCheck = "<+ADV>";
-        } else if ("CONJ".equalsIgnoreCase(aPOSType)) {
-          grammar = "<\\+KONJ>.*";
-          grammarCheck = "<+KONJ>";
-        }
-        //System.out.println(analysis);
-        if (analysis.contains(grammarCheck)) {
-          String remaining = analysis.replaceAll(grammar, "");
-          String vals[] = remaining.split(grammar2);
-          StringBuffer buffer = new StringBuffer();
-          String suffix = "";
-          for (int i = 0; i < vals.length - 1; i++) {
-            String val = vals[i];
-            //System.out.println(val);
-            if (!val.startsWith("<CAP")) {
-              val = val.replaceAll("<.*", "");
-              buffer.append(val.toLowerCase());
-            }
-          }
-          String lastWord = vals[vals.length - 1].toString().replaceAll("<.*", "");
-          if (lastWord.endsWith("<SUFF")) {
-            suffix = lastWord.toLowerCase();
-          }
-          String result = null;
-//                    if (aWord.toLowerCase().startsWith(buffer.toString() + "s") && !buffer.toString().trim().equals("") && !secondWord.startsWith("s")) {
-//                        result = buffer.append("s").append(vals[vals.length - 1].toLowerCase()).toString().replaceAll("<.*", "");
-//                    } else 
-          if (aWord.toLowerCase().equals(buffer.toString())) {
-            return aWord.toLowerCase();
-          } else {
-            // TODO: apparently the lastWord can be the empty string here sometimes!
-            if(lastWord.equals("")) {
-              //System.err.println("DEBUG Lemmatizer: lastWord is empty, orig="+vals[vals.length-1]+", buffer="+buffer);
-              return null;
-            }
-            String lastChar = lastWord.substring(lastWord.length() - 1, lastWord.length());
-            String local = buffer.toString() + lastChar;
-            //System.out.println(local);
-            if (local.equalsIgnoreCase(aWord)) {
-              return local;
-            }            
-            // TODO: this sometimes tries to take the substring using index -1
-            // TODO!! BUG!!!
-            // So we wrapped the if around it but not sure if this is the correct thing to do!!
-            if(lastWord.length() > 2) {
-              String last2Char = lastWord.substring(lastWord.length() - 2, lastWord.length());            
-              local = buffer.toString() + last2Char;
-            }
-            //System.out.println(local);
-            if (local.equalsIgnoreCase(aWord)) {
-              return local;
-            }
-          }
-          if (aWord.toLowerCase().startsWith(buffer.toString()) && !buffer.toString().trim().equals("")) {
-            String wordRemaining = aWord.toLowerCase().replaceAll(buffer.toString(), "");
-            wordRemaining = wordRemaining.replaceAll(lastWord.toLowerCase(), "");
-            if (!wordRemaining.trim().equals("") && wordRemaining.trim().length() <= 2) {
-              if (!suffix.equals("")) {
-                result = buffer.append(wordRemaining).toString();
-              } else {
-                String local = buffer.toString() + lastWord.toLowerCase().toString();
-                if (aWord.toLowerCase().startsWith(local)) {
-                  result = local;
-                } else {
-                  //System.out.println("hep " + aWord + " _ " + buffer.toString() + " _ " + vals[vals.length - 1].toLowerCase().toString().replaceAll("<.*", "") + " _ " + wordRemaining);
-                  result = buffer.append(wordRemaining).append(lastWord.toLowerCase()).toString();
-                }
-              }
-            } else {
-              result = buffer.append(lastWord.toLowerCase()).toString();
+			} else if ("de".equalsIgnoreCase(langCode)) {
+				String grammar = "NONE";
+				String grammar2 = ">";
+				String grammarCheck = "NONE";
+				if (aPOSType.startsWith("NN")) {
+					grammar = "<\\+NN>.*";
+					grammarCheck = "<+NN>";
+				} else if (aPOSType.startsWith("VB")) {
+					grammar = "<\\+V>.*";
+					grammarCheck = "<+V>";
+				} else if (aPOSType.startsWith("JJ")) {
+					grammar = "<\\+ADJ>.*";
+					grammarCheck = "<+ADJ>";
+				} else if (aPOSType.startsWith("RB")) {
+					grammar = "<\\+ADV>.*";
+					grammarCheck = "<+ADV>";
+				} else if (aPOSType.startsWith("CC")) {
+					grammar = "<\\+KONJ>.*";
+					grammarCheck = "<+KONJ>";
+				}
 
-            }
-          } else if (buffer.toString().trim().equals("")) {
-            result = buffer.append(vals[vals.length - 1].toLowerCase()).toString().replaceAll("<.*", "");
-          }
+				if (analysis.contains(grammarCheck)) {
+					String remaining = analysis.replaceAll(grammar, "");
+					String vals[] = remaining.split(grammar2);
+					StringBuilder builder = new StringBuilder();
+					String suffix = "";
+					for (int i = 0; i < vals.length - 1; i++) {
+						String val = vals[i];
+						if (!val.startsWith("<CAP")) {
+							val = val.replaceAll("<.*", "");
+							builder.append(val.toLowerCase());
+						}
+					}
+					String lastWord = vals[vals.length - 1].replaceAll("<.*", "");
+					if (lastWord.endsWith("<SUFF")) suffix = lastWord.toLowerCase();
 
-          if (result != null) {
-            result = result.replaceAll("\\{", "").replaceAll("\\}", "");
-          }
-          return result;
-        }
-      } else if ("it".equalsIgnoreCase(langCode)) {
+					String result = null;
+					if (aWord.toLowerCase().equals(builder.toString())) {
+						return aWord.toLowerCase();
 
-        String grammar = "NONE";
-        String grammarCheck = "NONE";
-        if ("NOUN".equalsIgnoreCase(aPOSType)) {
-          grammar = "#NOUN.*";
-          grammarCheck = "#NOUN";
-        } else if ("VERB".equalsIgnoreCase(aPOSType)) {
-          grammar = "#VER.*";
-          grammarCheck = "#VER";
-        } else if ("ADJ".equalsIgnoreCase(aPOSType)) {
-          grammar = "#ADJ.*";
-          grammarCheck = "#ADJ";
-        } else if ("ADV".equalsIgnoreCase(aPOSType)) {
-          grammar = "#ADV.*";
-          grammarCheck = "#ADV";
-        } else if ("CONJ".equalsIgnoreCase(aPOSType)) {
-          grammar = "#CON.*";
-          grammarCheck = "#CON";
+					} else {
+						// TODO: apparently the lastWord can be the empty string here sometimes!
+						if (lastWord.equals("")) return null;
+						String lastChar = lastWord.substring(lastWord.length() - 1, lastWord.length());
+						String local = builder.toString() + lastChar;
+						if (local.equalsIgnoreCase(aWord)) return local;
 
-        }
-        //System.out.println(analysis);
-        if (analysis.contains(grammarCheck)) {
-          String lemma = analysis.replaceAll(grammar, "");
-          if ((lemma.contains("+") && !lemma.contains("-")) && (aWord.contains("-") && !aWord.contains("+"))) {
-            lemma = lemma.replaceAll("\\+", "-");
-          }
-          if (lemma.contains("+") && !aWord.contains("+")) {
-            lemma = lemma.replaceAll("\\+", "");
-          }
-          return lemma.toLowerCase();
-        }
-      } else if ("fr".equalsIgnoreCase(langCode)) {
-        String grammar = "NONE";
-        String grammarCheck = "NONE";
-        if ("NOUN".equalsIgnoreCase(aPOSType)) {
-          grammar = "\\+commonNoun.*";
-          grammarCheck = "+commonNoun";
-        } else if ("VERB".equalsIgnoreCase(aPOSType)) {
-          grammar = "\\+verb+.*";
-          grammarCheck = "+verb+";
-        } else if ("ADJ".equalsIgnoreCase(aPOSType)) {
-          grammar = "\\+adjective.*";
-          grammarCheck = "+adjective";
-        } else if ("ADV".equalsIgnoreCase(aPOSType)) {
-          grammar = "\\+adverb.*";
-          grammarCheck = "+adverb";
-        } else if ("PRON".equalsIgnoreCase(aPOSType) || "CONJ".equalsIgnoreCase(aPOSType)) {
-          grammar = "\\+functionWord.*";
-          grammarCheck = "+functionWord";
+						// TODO: this sometimes tries to take the substring using index -1
+						// TODO!! BUG!!!
+						// So we wrapped the if around it but not sure if this is the correct thing to do!!
+						if (lastWord.length() > 2) {
+							String last2Char = lastWord.substring(lastWord.length() - 2, lastWord.length());
+							local = builder.toString() + last2Char;
+						}
 
-        }
-        //System.out.println(analysis);
-        if (analysis.contains(grammarCheck)) {
-          String lemma = analysis.replaceAll(grammar, "");
-          if ((lemma.contains("+") && !lemma.contains("-")) && (aWord.contains("-") && !aWord.contains("+"))) {
-            lemma = lemma.replaceAll("\\+", "-");
-          }
-          if (lemma.contains("+") && !aWord.contains("+")) {
-            lemma = lemma.replaceAll("\\+", "");
-          }
-          return lemma.toLowerCase();
-        }
-      }
-    }
-    if (analyses.isEmpty()) {
-      return null;
-    }
-    return null;
-  }
+						if (local.equalsIgnoreCase(aWord)) return local;
+					}
 
+					if (aWord.toLowerCase().startsWith(builder.toString()) && !builder.toString().trim().equals("")) {
+						String wordRemaining = aWord.toLowerCase().replaceAll(builder.toString(), "");
+						wordRemaining = wordRemaining.replaceAll(lastWord.toLowerCase(), "");
+						if (!wordRemaining.trim().equals("") && wordRemaining.trim().length() <= 2) {
+
+							if (!suffix.equals("")) {
+								result = builder.append(wordRemaining).toString();
+							} else {
+								String local = builder.toString() + lastWord.toLowerCase();
+								if (aWord.toLowerCase().startsWith(local)) result = local;
+								else result = builder.append(wordRemaining).append(lastWord.toLowerCase()).toString();
+							}
+
+						} else {
+							result = builder.append(lastWord.toLowerCase()).toString();
+						}
+
+					} else if (builder.toString().trim().equals("")) {
+						result = builder.append(vals[vals.length - 1].toLowerCase()).toString().replaceAll("<.*", "");
+					}
+
+					if (result != null) result = result.replaceAll("\\{", "").replaceAll("\\}", "");
+					return result;
+				}
+
+			} else if ("it".equalsIgnoreCase(langCode)) {
+				String grammar = "NONE";
+				String grammarCheck = "NONE";
+				if (aPOSType.startsWith("NN")) {
+					grammar = "#NOUN.*";
+					grammarCheck = "#NOUN";
+				} else if (aPOSType.startsWith("VB")) {
+					grammar = "#VER.*";
+					grammarCheck = "#VER";
+				} else if (aPOSType.startsWith("JJ")) {
+					grammar = "#ADJ.*";
+					grammarCheck = "#ADJ";
+				} else if (aPOSType.startsWith("RB")) {
+					grammar = "#ADV.*";
+					grammarCheck = "#ADV";
+				} else if (aPOSType.startsWith("CC")) {
+					grammar = "#CON.*";
+					grammarCheck = "#CON";
+				}
+
+				if (analysis.contains(grammarCheck)) {
+					String lemma = analysis.replaceAll(grammar, "");
+					if ((lemma.contains("+") && !lemma.contains("-")) && (aWord.contains("-") && !aWord.contains("+"))) lemma = lemma.replaceAll("\\+", "-");
+					if (lemma.contains("+") && !aWord.contains("+")) lemma = lemma.replaceAll("\\+", "");
+					return lemma.toLowerCase();
+				}
+
+			} else if ("fr".equalsIgnoreCase(langCode)) {
+				String grammar = "NONE";
+				String grammarCheck = "NONE";
+				if (aPOSType.startsWith("NN")) {
+					grammar = "\\+commonNoun.*";
+					grammarCheck = "+commonNoun";
+				} else if (aPOSType.startsWith("VB")) {
+					grammar = "\\+verb+.*";
+					grammarCheck = "+verb+";
+				} else if (aPOSType.startsWith("JJ")) {
+					grammar = "\\+adjective.*";
+					grammarCheck = "+adjective";
+				} else if (aPOSType.startsWith("RB")) {
+					grammar = "\\+adverb.*";
+					grammarCheck = "+adverb";
+				} else if (aPOSType.startsWith("PR") || aPOSType.startsWith("CC")) {
+					grammar = "\\+functionWord.*";
+					grammarCheck = "+functionWord";
+				}
+
+				if (analysis.contains(grammarCheck)) {
+					String lemma = analysis.replaceAll(grammar, "");
+					if ((lemma.contains("+") && !lemma.contains("-")) && (aWord.contains("-") && !aWord.contains("+"))) lemma = lemma.replaceAll("\\+", "-");
+					if (lemma.contains("+") && !aWord.contains("+")) lemma = lemma.replaceAll("\\+", "");
+					return lemma.toLowerCase();
+				}
+			}
+		}
+
+		return null;
+	}
 }
