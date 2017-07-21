@@ -50,7 +50,6 @@ public abstract class AbstractDocumentProcessor extends AbstractLanguageAnalyser
 	protected Throwable throwable;
 	protected AtomicInteger nDuplicates = null;
 
-	@Sharable
 	public void setNDuplicates(AtomicInteger n) {
 		nDuplicates = n;
 	}
@@ -88,22 +87,7 @@ public abstract class AbstractDocumentProcessor extends AbstractLanguageAnalyser
 	//================================================================================
 	@Override
 	public Resource init() throws ResourceInstantiationException {
-
-		// we always provide the following fields to all PRs which are used for duplicated PRs:
-		// nDuplicates is an AtomicInt which gets incremented whenever a resource
-		// gets duplicated.
-		synchronized (SYNC_OBJECT) {
-			if (getNDuplicates() == null) {
-				LOGGER.debug("creating first instance of PR " + this.getName());
-				setNDuplicates(new AtomicInteger(0));
-				setSharedData(new ConcurrentHashMap<String, Object>());
-				LOGGER.debug("created instance 0 of PR " + this.getName());
-			} else {
-				int thisn = getNDuplicates().addAndGet(1);
-				duplicateId = thisn;
-				LOGGER.debug("created duplicate " + thisn + " of PR " + this.getName());
-			}
-		}
+		setSharedData(new ConcurrentHashMap<String, Object>());		
 		return this;
 	}
 
