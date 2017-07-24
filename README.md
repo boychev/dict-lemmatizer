@@ -19,3 +19,6 @@ The input for the PR must already be tokenized and every token must have a Penn 
 This plugin is partly based on the [code](http://staffwww.dcs.shef.ac.uk/people/A.Aker/activityNLPProjects.html)
 developed by [Ahmet Aker](https://www.is.inf.uni-due.de/staff/aker.html.de) for POS tagging and lemmatization in several
 languages.
+
+## Test
+`mvn clean verify`
