@@ -95,6 +95,11 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
         <version>${maven.failsafe.plugin.version}</version>
+        <configuration>
+          <systemPropertyVariables>
+            <pluginDir>${project.build.directory}/${project.artifactId}-creole-bin/${project.artifactId}</pluginDir>
+          </systemPropertyVariables>
+        </configuration>
         <executions>
           <execution>
             <goals>
