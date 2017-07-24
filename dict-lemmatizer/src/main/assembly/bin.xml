@@ -44,6 +44,7 @@
       <outputFileNameMapping>${artifact.artifactId}.${artifact.extension}</outputFileNameMapping>
       <includes>
         <include>fi.seco:hfst:jar:*</include>
+        <include>com.carrotsearch:hppc:jar:*</include>
       </includes>
     </dependencySet>
   </dependencySets>

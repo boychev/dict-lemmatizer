@@ -1,4 +1,5 @@
 <CREOLE-DIRECTORY ID="${project.name}" VERSION="${project.version}" DESCRIPTION="${project.description}">
   <JAR scan="true">lib/${project.build.finalName}.jar</JAR>
   <JAR>lib/hfst.jar</JAR>
+  <JAR>lib/hppc.jar</JAR>
 </CREOLE-DIRECTORY>
