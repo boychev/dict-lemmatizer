@@ -21,7 +21,6 @@
 package com.ontotext.gate.dictlemm;
 
 import gate.*;
-import gate.api.AbstractDocumentProcessor;
 import gate.creole.ResourceData;
 import gate.creole.metadata.CreoleParameter;
 import gate.creole.metadata.CreoleResource;
