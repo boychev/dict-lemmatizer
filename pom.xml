@@ -18,9 +18,12 @@
   <description>Lemmatizes words</description>
 
   <properties>
+    <maven.failsafe.plugin.version>2.20</maven.failsafe.plugin.version>
+    <maven.resources.plugin.version>3.0.2</maven.resources.plugin.version>
+
     <gate.version>8.4.1</gate.version>
     <hfst.version>1.1.5</hfst.version>
-    <maven.resources.plugin.version>3.0.2</maven.resources.plugin.version>
+    <junit.version>4.11</junit.version>
   </properties>
 
   <dependencies>
@@ -28,11 +31,20 @@
       <groupId>uk.ac.gate</groupId>
       <artifactId>gate-core</artifactId>
       <version>${gate.version}</version>
+      <scope>provided</scope>
     </dependency>
+
     <dependency>
       <groupId>fi.seco</groupId>
       <artifactId>hfst</artifactId>
       <version>${hfst.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 
@@ -74,6 +86,20 @@
             <phase>package</phase>
             <goals>
               <goal>attached</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>${maven.failsafe.plugin.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
             </goals>
           </execution>
         </executions>
