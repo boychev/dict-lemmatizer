@@ -16,6 +16,7 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -44,7 +45,7 @@ public class DictLemmatizerIT {
 		inputCorpus = Factory.newCorpus("input test corpus");
 		inputCorpus.populate(DictLemmatizerIT.class.getResource(INPUT_CORPUS_RESOURCE_PATH), xmlFileFilter, StandardCharsets.UTF_8.name(), false);
 		outputCorpus = Factory.newCorpus("output test corpus");
-		inputCorpus.populate(DictLemmatizerIT.class.getResource(OUTPUT_CORPUS_RESOURCE_PATH), xmlFileFilter, StandardCharsets.UTF_8.name(), false);
+		outputCorpus.populate(DictLemmatizerIT.class.getResource(OUTPUT_CORPUS_RESOURCE_PATH), xmlFileFilter, StandardCharsets.UTF_8.name(), false);
 	}
 
 	@AfterClass
@@ -55,7 +56,7 @@ public class DictLemmatizerIT {
 	}
 
 	@Test
-	public void test() throws ResourceInstantiationException {
+	public void test() throws ResourceInstantiationException, InterruptedException {
 		LOGGER.info("preparing " + NUM_THREADS + " threads");
 		Thread[] threads = new Thread[NUM_THREADS];
 
@@ -64,7 +65,6 @@ public class DictLemmatizerIT {
 			Corpus inputCorpus = (Corpus) Factory.duplicate(DictLemmatizerIT.inputCorpus);
 
 			threads[i] = new Thread() {
-
 				@Override
 				public void run() {
 					try {
@@ -74,10 +74,12 @@ public class DictLemmatizerIT {
 					}
 				}
 			};
+
+			threads[i].start();
 		}
 
 		LOGGER.info("running " + NUM_THREADS + " threads");
-		for (Thread thread : threads) thread.start();
+		for (Thread thread : threads) thread.join();
 	}
 
 	private static void verifyLemmas(ConditionalSerialAnalyserController pipeline, Corpus inputCorpus, Corpus outputCorpus) throws ExecutionException {
@@ -85,7 +87,13 @@ public class DictLemmatizerIT {
 		pipeline.execute();
 
 		SortedSet<String> actualLemmatizations = lemmatizations(inputCorpus);
+		LOGGER.debug("actual lemmatizations:");
+		for (String lemmatization : actualLemmatizations) LOGGER.debug(" " + lemmatization);
+
 		SortedSet<String> xpectedLemmatizations = lemmatizations(outputCorpus);
+		LOGGER.debug("expected lemmatizations:");
+		for (String lemmatization : xpectedLemmatizations) LOGGER.debug(" " + lemmatization);
+
 		Assert.assertEquals("unexpected lemmatizations", xpectedLemmatizations, actualLemmatizations);
 	}
 
@@ -93,11 +101,13 @@ public class DictLemmatizerIT {
 		SortedSet<String> lemmatizations = new TreeSet<>();
 
 		for (Document document : corpus) {
-			Set<String> annotationSetNames = document.getAnnotationSetNames();
+			Set<String> annotationSetNames = new HashSet<>();
+			annotationSetNames.add("");
+			annotationSetNames.addAll(document.getAnnotationSetNames());
 
 			for (String annotationSetName : annotationSetNames) {
 
-				for (Annotation annotation : document.getAnnotations(annotationSetName)) {
+				for (Annotation annotation : document.getAnnotations(annotationSetName).get("Token")) {
 					FeatureMap features = annotation.getFeatures();
 
 					String string = (String) features.get("string");
@@ -111,6 +121,7 @@ public class DictLemmatizerIT {
 			}
 		}
 
+		Assert.assertFalse("no lemmatizations in corpus: " + corpus.getName(), lemmatizations.isEmpty());
 		return lemmatizations;
 	}
 }

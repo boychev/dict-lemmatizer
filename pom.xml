@@ -18,6 +18,8 @@
   <description>Lemmatizes words</description>
 
   <properties>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
     <maven.failsafe.plugin.version>2.20</maven.failsafe.plugin.version>
     <maven.resources.plugin.version>3.0.2</maven.resources.plugin.version>
 
