@@ -18,7 +18,7 @@
  * License along with this software. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package gate.plugin.lemmatizer;
+package com.ontotext.gate.dictlemm;
 
 import gate.*;
 import gate.api.AbstractDocumentProcessor;

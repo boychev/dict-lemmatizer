@@ -15,4 +15,5 @@ hs_err_*.log
 /tmp
 
 /.idea
+*.iml
 

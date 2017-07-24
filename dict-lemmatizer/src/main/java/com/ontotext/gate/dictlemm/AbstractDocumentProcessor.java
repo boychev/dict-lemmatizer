@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this software. If not, see <http://www.gnu.org/licenses/>.
  */
-package gate.api;
+package com.ontotext.gate.dictlemm;
 
 import gate.Controller;
 import gate.Document;
