@@ -96,6 +96,9 @@
         <artifactId>maven-failsafe-plugin</artifactId>
         <version>${maven.failsafe.plugin.version}</version>
         <configuration>
+          <additionalClasspathElements>
+            <additionalClasspathElement>src/test/resources</additionalClasspathElement>
+          </additionalClasspathElements>
           <systemPropertyVariables>
             <pluginDir>${project.build.directory}/${project.artifactId}-creole-bin/${project.artifactId}</pluginDir>
           </systemPropertyVariables>
